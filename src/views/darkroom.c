@@ -495,6 +495,7 @@ static void select_this_image(const int imgid)
   // select this image, if no multiple selection:
   if(dt_collection_get_selected_count(NULL) < 2)
   {
+    printf("new selected %d\n", imgid);
     sqlite3_stmt *stmt;
     DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "DELETE FROM main.selected_images", NULL, NULL, NULL);
     DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
@@ -782,10 +783,20 @@ static void dt_dev_jump_image(dt_develop_t *dev, int diff)
 
     DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "SELECT imgid FROM main.selected_images", -1, &stmt,
                                 NULL);
-    if(sqlite3_step(stmt) == SQLITE_ROW) orig_imgid = sqlite3_column_int(stmt, 0);
+    if(sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      orig_imgid = sqlite3_column_int(stmt, 0);
+      if (darktable.gui->grouping)
+      {
+        const dt_image_t *image = dt_image_cache_get(darktable.image_cache, orig_imgid, 'r');
+        orig_imgid = image->group_id;
+        dt_image_cache_read_release(darktable.image_cache, image);
+      }
+    }
     sqlite3_finalize(stmt);
 
     offset = dt_collection_image_offset(orig_imgid);
+    printf(">>>> offset = %d (%d)\n", offset, orig_imgid);
 
     DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), qin, -1, &stmt, NULL);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, offset + diff);
@@ -793,6 +804,7 @@ static void dt_dev_jump_image(dt_develop_t *dev, int diff)
     if(sqlite3_step(stmt) == SQLITE_ROW)
     {
       imgid = sqlite3_column_int(stmt, 0);
+      printf("next img: %d\n", imgid);
 
       if(orig_imgid == imgid)
       {
